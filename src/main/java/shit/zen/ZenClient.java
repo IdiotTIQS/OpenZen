@@ -3,6 +3,10 @@ package shit.zen;
 import asm.patchify.loader.PatchAgent;
 import asm.patchify.loader.PatchRegistry;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Field;
 import lombok.Getter;
 import lombok.Setter;
@@ -55,6 +59,8 @@ public class ZenClient extends ClientBase {
     public static String configDir = System.getProperty("user.home") + File.separator + ".zen";
     public static String username = "";
 
+    private static final String[] CLOUD_ASSET_NAMES = { "panel.png", "ptr.png", "lie.wav", "truth.wav" };
+
     private EventBus eventBus;
     private RotationHandler rotationHandler;
     private ModuleManager moduleManager;
@@ -87,6 +93,7 @@ public class ZenClient extends ClientBase {
             this.hudManager = new HudManager();
             this.commandManager = new CommandManager();
             this.configManager = new ConfigManager();
+            this.extractCloudAssets();
             this.lagManager = new LagManager();
             this.targetManager = new TargetManager();
             this.eventBus.register(this.hudManager);
@@ -137,6 +144,29 @@ public class ZenClient extends ClientBase {
         isReady = false;
         if (this.configManager != null) {
             this.configManager.saveAll();
+        }
+    }
+
+    private void extractCloudAssets() {
+        File targetDir = ConfigManager.CONFIG_DIR;
+        if (!targetDir.exists() && !targetDir.mkdirs()) {
+            logger.warn("Failed to create config directory at {}", targetDir);
+            return;
+        }
+        for (String name : CLOUD_ASSET_NAMES) {
+            File outFile = new File(targetDir, name);
+            if (outFile.exists()) continue;
+            try (InputStream in = ZenClient.class.getResourceAsStream("/assets/zen/cloud_assets/" + name)) {
+                if (in == null) {
+                    logger.warn("Cloud asset missing on classpath: {}", name);
+                    continue;
+                }
+                try (OutputStream out = new FileOutputStream(outFile)) {
+                    in.transferTo(out);
+                }
+            } catch (IOException ioException) {
+                logger.error("Failed to extract cloud asset {}", name, ioException);
+            }
         }
     }
 
