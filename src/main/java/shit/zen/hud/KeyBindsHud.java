@@ -44,86 +44,110 @@ extends HudElement {
 
     public static final class KeyBindRow {
         public final KeyBindsHud parent;
-        public Module module;
-        public KeyBindsHud.KeyBindEntry entry;
-        public String name;
-        public String key;
-        public boolean enabled = true;
+        public final Module module;
+        public String displayName;
+        public String keyName;
+        public boolean enabled;
         public boolean visible = true;
-        public boolean rightAligned = false;
+        public final boolean rightAligned;
+        public boolean animatingOut = false;
         public boolean animatingIn = false;
-        public float alpha = 1.0f;
-        public float targetY;
-        public float currentY;
-        public float nameWidth;
+        public boolean removing = false;
         public float slideX;
         public float opacity;
         public float widthValue;
         public float rowHeightValue;
         public float alphaValue;
-        public String displayName;
-        public String keyName;
-
-        public float getKeyWidth() {
-            return this.widthValue;
-        }
-
-        public shit.zen.render.FontRenderer getFittingFont(shit.zen.render.FontRenderer base, float maxWidth) {
-            return base;
-        }
-        public boolean removing = false;
-        public final shit.zen.utils.animation.SmoothAnimationTimer fadeAnim = new shit.zen.utils.animation.SmoothAnimationTimer();
-        public final shit.zen.utils.animation.SmoothAnimationTimer slideAnim = new shit.zen.utils.animation.SmoothAnimationTimer();
-        public final shit.zen.utils.animation.SmoothAnimationTimer heightAnim = new shit.zen.utils.animation.SmoothAnimationTimer();
-        public final shit.zen.utils.animation.SmoothAnimationTimer alphaAnim = new shit.zen.utils.animation.SmoothAnimationTimer();
-        public final shit.zen.utils.animation.SmoothAnimationTimer widthAnim = new shit.zen.utils.animation.SmoothAnimationTimer();
-
-        public void tick() {
-            float target = this.removing ? 0.0f : 1.0f;
-            this.alpha += (target - this.alpha) * 0.18f;
-            this.fadeAnim.tick();
-            this.slideAnim.tick();
-            this.heightAnim.tick();
-            this.alphaAnim.tick();
-            this.widthAnim.tick();
-        }
+        private float nameWidth;
+        private FontRenderer cachedFont;
+        private String cachedKeyName;
+        private float cachedMaxWidth;
+        private float cachedKeyWidth;
+        public final SmoothAnimationTimer slideAnim = new SmoothAnimationTimer();
+        public final SmoothAnimationTimer fadeAnim = new SmoothAnimationTimer();
+        public final SmoothAnimationTimer heightAnim = new SmoothAnimationTimer();
+        public final SmoothAnimationTimer alphaAnim = new SmoothAnimationTimer();
 
         public KeyBindRow(KeyBindsHud parent, Module module, KeyBindsHud.KeyBindEntry entry) {
             this.parent = parent;
             this.module = module;
-            this.entry = entry;
-            this.name = entry != null ? entry.name : module.getName();
-            this.key = entry != null ? entry.key : module.getBind().getName();
-            this.displayName = this.name;
-            this.keyName = this.key;
-            this.nameWidth = GlHelper.getStringWidth(this.name, parent.keyFont);
-            this.widthValue = this.nameWidth + 10.0f;
+            this.update(entry);
+            this.rightAligned = parent.isRightAligned;
+            this.slideAnim.setCurrentValue(this.rightAligned ? 20.0 : -20.0);
+            this.heightAnim.setCurrentValue(0.0);
+            this.alphaAnim.setCurrentValue(0.0);
+        }
+
+        public void update(KeyBindsHud.KeyBindEntry entry) {
+            this.displayName = entry.name;
+            String newKey = entry.key;
+            if (!java.util.Objects.equals(this.keyName, newKey)) {
+                this.cachedFont = null;
+            }
+            this.keyName = newKey;
+            this.enabled = entry.enabled;
+            this.nameWidth = GlHelper.getStringWidth(this.displayName, this.parent.keyFont);
         }
 
         public void startRemove() {
+            if (this.removing) return;
             this.removing = true;
+            this.animatingOut = true;
+            this.animatingIn = false;
+            float distance = 40.0f;
+            this.slideAnim.animate(this.rightAligned ? distance : -distance, 0.2, Easings.EASE_IN_POW3);
+            this.heightAnim.animate(0.0, 0.2, Easings.EASE_OUT_POW3);
+            this.alphaAnim.animate(0.0, 0.2, Easings.EASE_OUT_POW3);
         }
 
         public void cancelRemove() {
+            if (!this.removing) return;
             this.removing = false;
+            this.animatingOut = false;
+            this.animatingIn = true;
         }
 
-        public void update(KeyBindsHud.KeyBindEntry e) {
-            this.entry = e;
-            this.name = e != null ? e.name : this.module.getName();
-            this.key = e != null ? e.key : this.module.getBind().getName();
-            this.displayName = this.name;
-            this.keyName = this.key;
-            this.nameWidth = GlHelper.getStringWidth(this.name, this.parent.keyFont);
-            this.widthValue = this.nameWidth + 10.0f;
-        }
-
-        public boolean isRemoveDone() {
-            return this.removing && this.alpha <= 0.01f;
+        public void tick() {
+            this.slideAnim.tick();
+            this.fadeAnim.tick();
+            this.heightAnim.tick();
+            this.alphaAnim.tick();
         }
 
         public float getNameWidth() {
             return this.nameWidth;
+        }
+
+        public boolean isRemoveDone() {
+            return this.removing && this.heightAnim.isDone() && this.alphaAnim.isDone();
+        }
+
+        public FontRenderer getFittingFont(FontRenderer baseFont, float maxWidth) {
+            if (this.keyName == null) {
+                return baseFont;
+            }
+            if (this.cachedFont != null
+                    && this.keyName.equals(this.cachedKeyName)
+                    && this.cachedMaxWidth == maxWidth) {
+                return this.cachedFont;
+            }
+            float baseWidth = GlHelper.getStringWidth(this.keyName, baseFont);
+            FontRenderer fit = baseFont;
+            if (baseWidth > maxWidth) {
+                float scale = maxWidth / baseWidth;
+                fit = new FontRenderer(baseFont.getFontName(), baseFont.getSize() * scale);
+                this.cachedKeyWidth = GlHelper.getStringWidth(this.keyName, fit);
+            } else {
+                this.cachedKeyWidth = baseWidth;
+            }
+            this.cachedFont = fit;
+            this.cachedKeyName = this.keyName;
+            this.cachedMaxWidth = maxWidth;
+            return fit;
+        }
+
+        public float getKeyWidth() {
+            return this.cachedKeyWidth;
         }
     }
 
