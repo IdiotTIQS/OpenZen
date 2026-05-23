@@ -387,13 +387,28 @@ tasks.register('buildNative', Exec) {
     }
 }
 
-tasks.register('packageDist', Copy) {
+tasks.register('packageDist') {
     group = 'openzen'
     description = 'Collect the Loader EXE into build/dist for distribution. ' +
                   'OpenZen.dll is embedded inside the EXE, so we only ship one file.'
     dependsOn 'buildNative'
-    from "$nativeBuildDir/loader/Release/OpenZenLoader.exe"
-    into "$buildDir/dist"
+    // Use an inline copy { } block inside doLast rather than the Copy task
+    // type. Copy snapshots its source set at configuration time and reports
+    // NO-SOURCE on a first clean build because the EXE that buildNative is
+    // about to produce does not exist yet. doLast runs after buildNative,
+    // by which point the file is definitely on disk.
+    doLast {
+        def src = file("$nativeBuildDir/loader/Release/OpenZenLoader.exe")
+        if (!src.isFile()) {
+            throw new GradleException(
+                "Expected OpenZenLoader.exe at ${src} after buildNative; missing")
+        }
+        copy {
+            from src
+            into "$buildDir/dist"
+        }
+        logger.lifecycle("Packaged ${src.length()} bytes -> ${buildDir}/dist/${src.name}")
+    }
 }
 
 tasks.register('dll') {

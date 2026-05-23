@@ -21,12 +21,19 @@ QString fromW(const std::wstring& w) {
     return QString::fromWCharArray(w.c_str(), static_cast<int>(w.size()));
 }
 
-bool isMinecraft(const std::wstring& title) {
+bool startsWithMinecraft(const std::wstring& title) {
     static const std::wstring prefix = L"Minecraft";
-    static const std::wstring banned = L"Launcher";
     if (title.size() < prefix.size()) return false;
-    if (title.compare(0, prefix.size(), prefix) != 0) return false;
-    return title.find(banned) == std::wstring::npos;
+    return title.compare(0, prefix.size(), prefix) == 0;
+}
+
+bool isMinecraft(const std::wstring& title, const std::wstring& cls) {
+    // Either the window title starts with "Minecraft" (in-game window
+    // labelled e.g. "Minecraft 1.20.1"), or the window class is "GLFW30"
+    // (the class Minecraft's LWJGL GLFW windows always use, even before the
+    // title has been set).
+    if (startsWithMinecraft(title)) return true;
+    return _wcsicmp(cls.c_str(), L"GLFW30") == 0;
 }
 } // namespace
 
@@ -167,7 +174,7 @@ void MainWindow::refreshNow() {
     QVector<Row> filtered;
     filtered.reserve(procs.size());
     for (const auto& jp : procs) {
-        if (!isMinecraft(jp.window_title)) continue;
+        if (!isMinecraft(jp.window_title, jp.window_class)) continue;
         Row r{ jp.pid, fromW(jp.window_title), fromW(jp.window_class) };
         filtered.push_back(std::move(r));
     }
